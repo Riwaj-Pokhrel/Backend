@@ -25,6 +25,18 @@ router.get(
 
 
 
+// Student Attendance Summary — CSV Download
+
+
+router.get(
+    "/student/:student_id/download",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER", "STUDENT"),
+    reportController.getStudentAttendanceSummaryCSV
+);
+
+
+
 // Class Attendance Report
 // SUPER_ADMIN / Department Admin / Teacher
 
@@ -38,6 +50,58 @@ router.get(
 
 
 
+// Class Attendance Report — CSV Download
+
+
+router.get(
+    "/class/:class_id/download",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER"),
+    reportController.getClassAttendanceReportCSV
+);
+
+
+
+// Attendance Session Log — when attendance was taken
+// SUPER_ADMIN / Department Admin / Teacher (own sessions only)
+
+
+router.get(
+    "/sessions",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER"),
+    reportController.getSessionLog
+);
+
+
+
+// Sessions Taken Per Teacher
+// SUPER_ADMIN / Department Admin
+
+
+router.get(
+    "/sessions-by-teacher",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER"),
+    reportController.getTeacherSessionCounts
+);
+
+
+
+// Student Attendance Report — Per Subject
+// Student can view own report.
+// Teachers/Admins can view according to permissions.
+
+
+router.get(
+    "/student/:student_id/subjects",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER", "STUDENT"),
+    reportController.getStudentSubjectReport
+);
+
+
+
 // Subject Attendance Report
 // SUPER_ADMIN / Department Admin / Teacher
 
@@ -47,6 +111,18 @@ router.get(
     verifyToken,
     allowRoles("SUPER_ADMIN", "TEACHER"),
     reportController.getSubjectAttendanceReport
+);
+
+
+
+// Subject Attendance Report — CSV Download
+
+
+router.get(
+    "/subject/:subject_id/class/:class_id/download",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER"),
+    reportController.getSubjectAttendanceReportCSV
 );
 
 

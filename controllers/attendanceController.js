@@ -673,11 +673,14 @@ exports.updateAttendance = (req, res) => {
     }
 
 
-    // Find attendance and session
+    // Find attendance, session, student, and subject/class names
     db.query(
         `SELECT
             a.id,
-            ats.id AS attendance_session_id
+            a.student_id,
+            ats.id AS attendance_session_id,
+            s.subject_name,
+            c.class_name
 
          FROM attendance a
 
@@ -686,6 +689,12 @@ exports.updateAttendance = (req, res) => {
 
          JOIN teacher_assignments ta
              ON ats.teacher_assignment_id = ta.id
+
+         JOIN subjects s
+             ON ta.subject_id = s.id
+
+         JOIN classes c
+             ON ta.class_id = c.id
 
          WHERE a.id=?
          AND ats.attendance_date=CURDATE()`,
@@ -714,6 +723,15 @@ exports.updateAttendance = (req, res) => {
 
             const attendance_session_id =
                 attendanceResult[0].attendance_session_id;
+
+            const student_id =
+                attendanceResult[0].student_id;
+
+            const subject_name =
+                attendanceResult[0].subject_name;
+
+            const class_name =
+                attendanceResult[0].class_name;
 
 
             // Check whether current user can access session
@@ -768,10 +786,47 @@ exports.updateAttendance = (req, res) => {
                             }
 
 
-                            return res.json({
-                                success: true,
-                                message: "Attendance updated successfully."
-                            });
+                            // Notify the student of the updated status
+                            const notificationTitle =
+                                "Attendance Updated";
+
+                            const notificationMessage =
+                                `Your attendance for ${subject_name} in ${class_name} was updated to ${status}.`;
+
+                            db.query(
+                                `INSERT INTO notifications
+                                (
+                                    user_id,
+                                    title,
+                                    message
+                                )
+                                VALUES (?, ?, ?)`,
+                                [
+                                    student_id,
+                                    notificationTitle,
+                                    notificationMessage
+                                ],
+                                (notificationErr) => {
+
+                                    // Notification failure should NOT
+                                    // invalidate a successful update.
+                                    if (notificationErr) {
+
+                                        console.error(
+                                            "Notification Error:",
+                                            notificationErr
+                                        );
+
+                                    }
+
+
+                                    return res.json({
+                                        success: true,
+                                        message: "Attendance updated successfully."
+                                    });
+
+                                }
+                            );
 
                         }
                     );
@@ -877,4 +932,3 @@ exports.getSessionAttendance = (req, res) => {
     );
 
 };
-

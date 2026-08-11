@@ -2,9 +2,9 @@ const db = require("../config/db");
 const bcrypt = require("bcrypt");
 
 
-// ======================================
+
 // Create Student
-// ======================================
+
 exports.createStudent = async (req, res) => {
 
     const {
@@ -214,9 +214,9 @@ exports.createStudent = async (req, res) => {
 };
 
 
-// ======================================
+
 // View All Students
-// ======================================
+
 exports.getAllStudents = (req, res) => {
 
     let sql = `
@@ -294,9 +294,9 @@ exports.getAllStudents = (req, res) => {
 };
 
 
-// ======================================
+
 // View Students By Class
-// ======================================
+
 exports.getStudentsByClass = (req, res) => {
 
     const { class_id } = req.params;
@@ -373,9 +373,9 @@ exports.getStudentsByClass = (req, res) => {
 };
 
 
-// ======================================
+
 // Update Student
-// ======================================
+
 exports.updateStudent = (req, res) => {
 
     const { id } = req.params;
@@ -625,9 +625,9 @@ exports.updateStudent = (req, res) => {
 };
 
 
-// ======================================
+
 // Activate / Deactivate Student
-// ======================================
+
 exports.toggleStudentStatus = (req, res) => {
 
     const { id } = req.params;
@@ -702,9 +702,114 @@ exports.toggleStudentStatus = (req, res) => {
 };
 
 
-// ======================================
+
+// Reset Student Password
+
+//
+// Admin-initiated password reset (no self-service "forgot
+// password" flow exists, since there's no email infrastructure
+// in this project). Super Admin can reset any student's password;
+// a Department Admin can reset it only for students within their
+// managed departments, same scoping as toggleStudentStatus above.
+// The admin sets the new password directly and relays it to the
+// student out-of-band; the student can change it afterward via
+// their own Change Password screen.
+
+
+exports.resetStudentPassword = async (req, res) => {
+
+    const { id } = req.params;
+    const { new_password } = req.body;
+
+    if (!new_password) {
+        return res.status(400).json({
+            success: false,
+            message: "New password is required."
+        });
+    }
+
+    if (new_password.length < 6) {
+        return res.status(400).json({
+            success: false,
+            message: "New password must be at least 6 characters."
+        });
+    }
+
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+
+    let sql = `
+        UPDATE users u
+        SET u.password=?
+        WHERE u.id=?
+        AND u.role='STUDENT'
+    `;
+
+    let params = [hashedPassword, id];
+
+
+    
+    // Department Admin:
+    // only students in managed departments
+    
+    if (
+        req.user.role === "TEACHER" &&
+        Number(req.user.is_department_admin) === 1
+    ) {
+
+        sql = `
+            UPDATE users u
+            JOIN student_classes sc
+                ON u.id = sc.student_id
+            JOIN classes c
+                ON sc.class_id = c.id
+            JOIN department_management dm
+                ON c.department_id = dm.department_id
+            SET u.password=?
+            WHERE u.id=?
+            AND u.role='STUDENT'
+            AND dm.teacher_id=?
+        `;
+
+        params = [hashedPassword, id, req.user.id];
+    }
+
+
+    db.query(
+        sql,
+        params,
+        (err, result) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Student not found or access denied."
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: "Student password reset successfully."
+            });
+
+        }
+    );
+
+};
+
+
+
 // Search Student
-// ======================================
+
 exports.searchStudent = (req, res) => {
 
     const { roll_no } = req.params;

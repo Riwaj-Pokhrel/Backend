@@ -15,6 +15,7 @@ const {
     getStudentsByClass,
     updateStudent,
     toggleStudentStatus,
+    resetStudentPassword,
     searchStudent
 } = require("../controllers/studentController");
 
@@ -80,6 +81,20 @@ router.patch(
     allowAdminAccess,
     checkStudentDepartmentAccess,
     toggleStudentStatus
+);
+
+
+
+// Reset Student Password
+// Super Admin / Department Admin
+// of student's department
+
+router.patch(
+    "/:id/reset-password",
+    verifyToken,
+    allowAdminAccess,
+    checkStudentDepartmentAccess,
+    resetStudentPassword
 );
 
 

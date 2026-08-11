@@ -4,7 +4,8 @@ const router = express.Router();
 
 const {
     verifyToken,
-    allowRoles
+    allowRoles,
+    allowAdminAccess
 } = require("../middleware/authMiddleware");
 
 const {
@@ -21,7 +22,7 @@ const {
 
 
 // Department Management
-// SUPER_ADMIN ONLY
+// SUPER_ADMIN ONLY (except viewing — see below)
 
 
 
@@ -35,10 +36,13 @@ router.post(
 
 
 // View Departments
+// SUPER_ADMIN / Department Admin (scoped to their own department(s)
+// inside the controller — needed for dropdowns like class/subject
+// creation)
 router.get(
     "/",
     verifyToken,
-    allowRoles("SUPER_ADMIN"),
+    allowAdminAccess,
     getAllDepartments
 );
 

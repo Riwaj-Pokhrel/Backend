@@ -4,7 +4,8 @@ const router = express.Router();
 
 const {
     verifyToken,
-    allowRoles
+    allowRoles,
+    allowAdminAccess
 } = require("../middleware/authMiddleware");
 
 const teacherAssignmentController =
@@ -19,7 +20,7 @@ const teacherAssignmentController =
 router.post(
     "/",
     verifyToken,
-    allowRoles("SUPER_ADMIN", "TEACHER"),
+    allowAdminAccess,
     teacherAssignmentController.assignTeacher
 );
 
@@ -75,11 +76,10 @@ router.get(
 // SUPER_ADMIN / Department Admin
 
 
-
 router.put(
     "/:id",
     verifyToken,
-    allowRoles("SUPER_ADMIN", "TEACHER"),
+    allowAdminAccess,
     teacherAssignmentController.updateAssignment
 );
 
@@ -92,7 +92,7 @@ router.put(
 router.patch(
     "/:id/status",
     verifyToken,
-    allowRoles("SUPER_ADMIN", "TEACHER"),
+    allowAdminAccess,
     teacherAssignmentController.toggleAssignmentStatus
 );
 

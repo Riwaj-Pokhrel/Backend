@@ -74,17 +74,56 @@ exports.createDepartment = (req, res) => {
 
 
 // View Departments
-// SUPER_ADMIN ONLY
+// SUPER_ADMIN sees all.
+// Department Admin sees only their own managed department(s) —
+// needed so screens like class/subject creation can populate a
+// department dropdown for them.
 
 
 exports.getAllDepartments = (req, res) => {
 
-    db.query(
-        `SELECT
+    let sql = `
+        SELECT
             id,
             department_name
          FROM departments
-         ORDER BY department_name ASC`,
+    `;
+
+    const params = [];
+
+    if (
+        req.user.role === "TEACHER" &&
+        Number(req.user.is_department_admin) === 1
+    ) {
+
+        sql = `
+            SELECT
+                d.id,
+                d.department_name
+            FROM departments d
+            JOIN department_management dm
+                ON d.id = dm.department_id
+            WHERE dm.teacher_id = ?
+        `;
+
+        params.push(req.user.id);
+
+    }
+    else if (req.user.role !== "SUPER_ADMIN") {
+
+        return res.status(403).json({
+            success: false,
+            message: "Access denied."
+        });
+
+    }
+
+    sql += ` ORDER BY department_name ASC `;
+
+
+    db.query(
+        sql,
+        params,
         (err, results) => {
 
             if (err) {
@@ -357,6 +396,11 @@ exports.makeDepartmentAdmin = (req, res) => {
 
 // Remove Department Admin Privilege
 // SUPER_ADMIN ONLY
+//
+// Also clears any existing department_management rows for
+// this teacher, so re-promoting them later starts from a
+// clean slate instead of silently restoring old department
+// access they were never explicitly re-granted.
 
 
 exports.removeDepartmentAdmin = (req, res) => {
@@ -387,10 +431,29 @@ exports.removeDepartmentAdmin = (req, res) => {
                 });
             }
 
-            return res.json({
-                success: true,
-                message: "Department Admin removed successfully."
-            });
+            // Clear stale department assignments
+            db.query(
+                `DELETE FROM department_management
+                 WHERE teacher_id=?`,
+                [teacher_id],
+                (err) => {
+
+                    if (err) {
+                        console.error(err);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Database Error"
+                        });
+                    }
+
+                    return res.json({
+                        success: true,
+                        message: "Department Admin removed successfully."
+                    });
+
+                }
+            );
 
         }
     );

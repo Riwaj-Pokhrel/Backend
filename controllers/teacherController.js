@@ -49,6 +49,14 @@ exports.createTeacher = async (req, res) => {
                 (err) => {
 
                     if (err) {
+
+                        if (err.code === "ER_DUP_ENTRY") {
+                            return res.status(400).json({
+                                success: false,
+                                message: "Email already exists."
+                            });
+                        }
+
                         return res.status(500).json({
                             success: false,
                             message: "Database Error"
@@ -123,6 +131,14 @@ exports.updateTeacher = (req, res) => {
         (err, result) => {
 
             if (err) {
+
+                if (err.code === "ER_DUP_ENTRY") {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Email already exists."
+                    });
+                }
+
                 return res.status(500).json({
                     success: false,
                     message: "Database Error"
@@ -146,7 +162,64 @@ exports.updateTeacher = (req, res) => {
 
 };
 
-// Activate / Deactivate Teacher
+// Reset Teacher Password
+// SUPER_ADMIN ONLY
+//
+// Admin-initiated reset — sets a new password directly and the
+// admin relays it to the teacher out-of-band. The teacher can
+// then change it themselves via their own Change Password screen.
+exports.resetTeacherPassword = async (req, res) => {
+
+    const { id } = req.params;
+    const { new_password } = req.body;
+
+    if (!new_password) {
+        return res.status(400).json({
+            success: false,
+            message: "New password is required."
+        });
+    }
+
+    if (new_password.length < 6) {
+        return res.status(400).json({
+            success: false,
+            message: "New password must be at least 6 characters."
+        });
+    }
+
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    db.query(
+        `UPDATE users
+         SET password=?
+         WHERE id=?
+         AND role='TEACHER'`,
+        [hashedPassword, id],
+        (err, result) => {
+
+            if (err) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Teacher not found."
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: "Teacher password reset successfully."
+            });
+
+        }
+    );
+
+};
 exports.toggleTeacherStatus = (req, res) => {
 
     const { id } = req.params;

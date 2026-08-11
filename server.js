@@ -13,6 +13,7 @@ const subjectRoutes = require("./routes/subjectRoutes");
 const teacherAssignmentRoutes = require("./routes/teacherAssignmentRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const reportRoutes = require("./routes/reportRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 const app = express();
 
 app.use(cors());
@@ -27,6 +28,7 @@ app.use("/api/subjects", subjectRoutes);
 app.use("/api/teacher-assignments", teacherAssignmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.get("/", (req, res) => {
     res.send("Smart Attendance System API Running...");
 });

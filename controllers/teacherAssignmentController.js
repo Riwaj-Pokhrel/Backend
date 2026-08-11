@@ -2,9 +2,6 @@ const db = require("../config/db");
 
 
 
-
-
-
 const checkClassAccess = (req, class_id, callback) => {
 
     // SUPER_ADMIN can access everything
@@ -76,6 +73,59 @@ const checkAssignmentAccess = (req, assignment_id, callback) => {
             assignment_id,
             req.user.id
         ],
+        (err, result) => {
+
+            if (err) {
+                return callback(err);
+            }
+
+            callback(null, result.length > 0);
+        }
+    );
+};
+
+
+
+// Helper: Check whether the teacher already has an
+// overlapping assignment on the same day, regardless
+// of class/subject. Prevents double-booking a teacher
+// into two places at once.
+
+
+const checkTeacherScheduleConflict = (
+    teacher_id,
+    day,
+    start_time,
+    end_time,
+    exclude_assignment_id,
+    callback
+) => {
+
+    let sql = `
+        SELECT id
+        FROM teacher_assignments
+        WHERE teacher_id = ?
+        AND day = ?
+        AND is_active = 1
+        AND start_time < ?
+        AND end_time > ?
+    `;
+
+    const params = [
+        teacher_id,
+        day,
+        end_time,
+        start_time
+    ];
+
+    if (exclude_assignment_id) {
+        sql += ` AND id <> ?`;
+        params.push(exclude_assignment_id);
+    }
+
+    db.query(
+        sql,
+        params,
         (err, result) => {
 
             if (err) {
@@ -241,24 +291,15 @@ exports.assignTeacher = (req, res) => {
                                     }
 
 
-                                    // Check overlapping assignment
-                                    db.query(
-                                        `SELECT id
-                                         FROM teacher_assignments
-                                         WHERE class_id = ?
-                                         AND subject_id = ?
-                                         AND day = ?
-                                         AND is_active = 1
-                                         AND start_time < ?
-                                         AND end_time > ?`,
-                                        [
-                                            class_id,
-                                            subject_id,
-                                            day,
-                                            end_time,
-                                            start_time
-                                        ],
-                                        (err, overlapResult) => {
+                                    // Check the teacher isn't already
+                                    // booked elsewhere at this time
+                                    checkTeacherScheduleConflict(
+                                        teacher_id,
+                                        day,
+                                        start_time,
+                                        end_time,
+                                        null,
+                                        (err, teacherConflict) => {
 
                                             if (err) {
                                                 console.error(err);
@@ -270,68 +311,110 @@ exports.assignTeacher = (req, res) => {
                                             }
 
 
-                                            if (overlapResult.length > 0) {
+                                            if (teacherConflict) {
                                                 return res.status(400).json({
                                                     success: false,
                                                     message:
-                                                        "Another teacher is already assigned to this subject at the selected time."
+                                                        "This teacher already has another assignment that overlaps with the selected time."
                                                 });
                                             }
 
 
-                                            // Insert Assignment
+                                            // Check overlapping assignment
+                                            // for this specific class/subject/day
                                             db.query(
-                                                `INSERT INTO teacher_assignments
-                                                (
-                                                    teacher_id,
-                                                    class_id,
-                                                    subject_id,
-                                                    day,
-                                                    start_time,
-                                                    end_time,
-                                                    is_active
-                                                )
-                                                VALUES (?, ?, ?, ?, ?, ?, 1)`,
+                                                `SELECT id
+                                                 FROM teacher_assignments
+                                                 WHERE class_id = ?
+                                                 AND subject_id = ?
+                                                 AND day = ?
+                                                 AND is_active = 1
+                                                 AND start_time < ?
+                                                 AND end_time > ?`,
                                                 [
-                                                    teacher_id,
                                                     class_id,
                                                     subject_id,
                                                     day,
-                                                    start_time,
-                                                    end_time
+                                                    end_time,
+                                                    start_time
                                                 ],
-                                                (err, result) => {
+                                                (err, overlapResult) => {
 
                                                     if (err) {
-
-                                                        if (
-                                                            err.code ===
-                                                            "ER_DUP_ENTRY"
-                                                        ) {
-                                                            return res.status(400).json({
-                                                                success: false,
-                                                                message:
-                                                                    "Assignment already exists."
-                                                            });
-                                                        }
-
-
                                                         console.error(err);
 
                                                         return res.status(500).json({
                                                             success: false,
-                                                            message:
-                                                                "Database Error"
+                                                            message: "Database Error"
                                                         });
                                                     }
 
 
-                                                    return res.status(201).json({
-                                                        success: true,
-                                                        message:
-                                                            "Teacher assigned successfully.",
-                                                        id: result.insertId
-                                                    });
+                                                    if (overlapResult.length > 0) {
+                                                        return res.status(400).json({
+                                                            success: false,
+                                                            message:
+                                                                "Another teacher is already assigned to this subject at the selected time."
+                                                        });
+                                                    }
+
+
+                                                    // Insert Assignment
+                                                    db.query(
+                                                        `INSERT INTO teacher_assignments
+                                                        (
+                                                            teacher_id,
+                                                            class_id,
+                                                            subject_id,
+                                                            day,
+                                                            start_time,
+                                                            end_time,
+                                                            is_active
+                                                        )
+                                                        VALUES (?, ?, ?, ?, ?, ?, 1)`,
+                                                        [
+                                                            teacher_id,
+                                                            class_id,
+                                                            subject_id,
+                                                            day,
+                                                            start_time,
+                                                            end_time
+                                                        ],
+                                                        (err, result) => {
+
+                                                            if (err) {
+
+                                                                if (
+                                                                    err.code ===
+                                                                    "ER_DUP_ENTRY"
+                                                                ) {
+                                                                    return res.status(400).json({
+                                                                        success: false,
+                                                                        message:
+                                                                            "Assignment already exists."
+                                                                    });
+                                                                }
+
+
+                                                                console.error(err);
+
+                                                                return res.status(500).json({
+                                                                    success: false,
+                                                                    message:
+                                                                        "Database Error"
+                                                                });
+                                                            }
+
+
+                                                            return res.status(201).json({
+                                                                success: true,
+                                                                message:
+                                                                    "Teacher assigned successfully.",
+                                                                id: result.insertId
+                                                            });
+
+                                                        }
+                                                    );
 
                                                 }
                                             );
@@ -351,8 +434,6 @@ exports.assignTeacher = (req, res) => {
         }
     );
 };
-
-
 
 
 
@@ -937,83 +1018,59 @@ exports.updateAssignment = (req, res) => {
                                             }
 
 
-                                            // Check overlapping schedule
-                                            db.query(
-                                                `SELECT id
-                                                 FROM teacher_assignments
-                                                 WHERE class_id = ?
-                                                 AND subject_id = ?
-                                                 AND day = ?
-                                                 AND is_active = 1
-                                                 AND id <> ?
-                                                 AND start_time < ?
-                                                 AND end_time > ?`,
-                                                [
-                                                    class_id,
-                                                    subject_id,
-                                                    day,
-                                                    id,
-                                                    end_time,
-                                                    start_time
-                                                ],
-                                                (err, overlapResult) => {
+                                            // Check the teacher isn't already
+                                            // booked elsewhere at this time
+                                            // (excluding this assignment itself)
+                                            checkTeacherScheduleConflict(
+                                                teacher_id,
+                                                day,
+                                                start_time,
+                                                end_time,
+                                                id,
+                                                (err, teacherConflict) => {
 
                                                     if (err) {
                                                         console.error(err);
 
                                                         return res.status(500).json({
                                                             success: false,
-                                                            message:
-                                                                "Database Error"
+                                                            message: "Database Error"
                                                         });
                                                     }
 
 
-                                                    if (overlapResult.length > 0) {
+                                                    if (teacherConflict) {
                                                         return res.status(400).json({
                                                             success: false,
                                                             message:
-                                                                "Another teacher is already assigned to this subject at the selected time."
+                                                                "This teacher already has another assignment that overlaps with the selected time."
                                                         });
                                                     }
 
 
-                                                    // Update
+                                                    // Check overlapping schedule
+                                                    // for this class/subject/day
                                                     db.query(
-                                                        `UPDATE teacher_assignments
-                                                         SET
-                                                            teacher_id = ?,
-                                                            class_id = ?,
-                                                            subject_id = ?,
-                                                            day = ?,
-                                                            start_time = ?,
-                                                            end_time = ?
-                                                         WHERE id = ?`,
+                                                        `SELECT id
+                                                         FROM teacher_assignments
+                                                         WHERE class_id = ?
+                                                         AND subject_id = ?
+                                                         AND day = ?
+                                                         AND is_active = 1
+                                                         AND id <> ?
+                                                         AND start_time < ?
+                                                         AND end_time > ?`,
                                                         [
-                                                            teacher_id,
                                                             class_id,
                                                             subject_id,
                                                             day,
-                                                            start_time,
+                                                            id,
                                                             end_time,
-                                                            id
+                                                            start_time
                                                         ],
-                                                        (err, result) => {
+                                                        (err, overlapResult) => {
 
                                                             if (err) {
-
-                                                                if (
-                                                                    err.code ===
-                                                                    "ER_DUP_ENTRY"
-                                                                ) {
-                                                                    return res.status(400).json({
-                                                                        success: false,
-                                                                        message:
-                                                                            "Assignment already exists."
-                                                                    });
-                                                                }
-
-
                                                                 console.error(err);
 
                                                                 return res.status(500).json({
@@ -1024,22 +1081,80 @@ exports.updateAssignment = (req, res) => {
                                                             }
 
 
-                                                            if (
-                                                                result.affectedRows === 0
-                                                            ) {
-                                                                return res.status(404).json({
+                                                            if (overlapResult.length > 0) {
+                                                                return res.status(400).json({
                                                                     success: false,
                                                                     message:
-                                                                        "Assignment not found."
+                                                                        "Another teacher is already assigned to this subject at the selected time."
                                                                 });
                                                             }
 
 
-                                                            return res.json({
-                                                                success: true,
-                                                                message:
-                                                                    "Assignment updated successfully."
-                                                            });
+                                                            // Update
+                                                            db.query(
+                                                                `UPDATE teacher_assignments
+                                                                 SET
+                                                                    teacher_id = ?,
+                                                                    class_id = ?,
+                                                                    subject_id = ?,
+                                                                    day = ?,
+                                                                    start_time = ?,
+                                                                    end_time = ?
+                                                                 WHERE id = ?`,
+                                                                [
+                                                                    teacher_id,
+                                                                    class_id,
+                                                                    subject_id,
+                                                                    day,
+                                                                    start_time,
+                                                                    end_time,
+                                                                    id
+                                                                ],
+                                                                (err, result) => {
+
+                                                                    if (err) {
+
+                                                                        if (
+                                                                            err.code ===
+                                                                            "ER_DUP_ENTRY"
+                                                                        ) {
+                                                                            return res.status(400).json({
+                                                                                success: false,
+                                                                                message:
+                                                                                    "Assignment already exists."
+                                                                            });
+                                                                        }
+
+
+                                                                        console.error(err);
+
+                                                                        return res.status(500).json({
+                                                                            success: false,
+                                                                            message:
+                                                                                "Database Error"
+                                                                        });
+                                                                    }
+
+
+                                                                    if (
+                                                                        result.affectedRows === 0
+                                                                    ) {
+                                                                        return res.status(404).json({
+                                                                            success: false,
+                                                                            message:
+                                                                                "Assignment not found."
+                                                                        });
+                                                                    }
+
+
+                                                                    return res.json({
+                                                                        success: true,
+                                                                        message:
+                                                                            "Assignment updated successfully."
+                                                                    });
+
+                                                                }
+                                                            );
 
                                                         }
                                                     );

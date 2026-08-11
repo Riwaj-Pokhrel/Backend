@@ -1,11 +1,10 @@
-
 const express = require("express");
 
 const router = express.Router();
 
 const {
     verifyToken,
-    allowRoles
+    allowAdminAccess
 } = require("../middleware/authMiddleware");
 
 const {
@@ -24,7 +23,7 @@ const {
 router.post(
     "/",
     verifyToken,
-    allowRoles("SUPER_ADMIN", "TEACHER"),
+    allowAdminAccess,
     createClass
 );
 
@@ -37,7 +36,7 @@ router.post(
 router.get(
     "/",
     verifyToken,
-    allowRoles("SUPER_ADMIN", "TEACHER"),
+    allowAdminAccess,
     getAllClasses
 );
 
@@ -50,7 +49,7 @@ router.get(
 router.put(
     "/:id",
     verifyToken,
-    allowRoles("SUPER_ADMIN", "TEACHER"),
+    allowAdminAccess,
     updateClass
 );
 
@@ -63,10 +62,9 @@ router.put(
 router.patch(
     "/:id/status",
     verifyToken,
-    allowRoles("SUPER_ADMIN", "TEACHER"),
+    allowAdminAccess,
     toggleClassStatus
 );
 
 
 module.exports = router;
-
