@@ -1,4 +1,3 @@
-
 const db = require("../config/db");
 
 
@@ -111,9 +110,9 @@ exports.createClass = (req, res) => {
     }
 
 
-    // =================================================
+   
     // Insert Class
-    // =================================================
+   
 
     function insertClass() {
 
@@ -496,3 +495,176 @@ exports.toggleClassStatus = (req, res) => {
     );
 };
 
+
+// Delete Class
+
+
+exports.deleteClass = (req, res) => {
+
+    const { id } = req.params;
+
+    checkClassAccess(
+        req,
+        id,
+        (err, hasAccess) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (!hasAccess) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You do not have permission to delete this class."
+                });
+            }
+
+
+            // 1. Attendance records for sessions under this class
+            db.query(
+                `DELETE a
+                 FROM attendance a
+                 JOIN attendance_sessions ats
+                     ON a.attendance_session_id = ats.id
+                 JOIN teacher_assignments ta
+                     ON ats.teacher_assignment_id = ta.id
+                 WHERE ta.class_id = ?`,
+                [id],
+                (err) => {
+
+                    if (err) {
+                        console.error(err);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Database Error"
+                        });
+                    }
+
+
+                    // 2. Attendance sessions under this class
+                    db.query(
+                        `DELETE ats
+                         FROM attendance_sessions ats
+                         JOIN teacher_assignments ta
+                             ON ats.teacher_assignment_id = ta.id
+                         WHERE ta.class_id = ?`,
+                        [id],
+                        (err) => {
+
+                            if (err) {
+                                console.error(err);
+
+                                return res.status(500).json({
+                                    success: false,
+                                    message: "Database Error"
+                                });
+                            }
+
+
+                            // 3. Teacher assignments for this class
+                            db.query(
+                                `DELETE FROM teacher_assignments
+                                 WHERE class_id = ?`,
+                                [id],
+                                (err) => {
+
+                                    if (err) {
+                                        console.error(err);
+
+                                        return res.status(500).json({
+                                            success: false,
+                                            message: "Database Error"
+                                        });
+                                    }
+
+
+                                    // 4. Subjects belonging to this class
+                                    db.query(
+                                        `DELETE FROM subjects
+                                         WHERE class_id = ?`,
+                                        [id],
+                                        (err) => {
+
+                                            if (err) {
+                                                console.error(err);
+
+                                                return res.status(500).json({
+                                                    success: false,
+                                                    message: "Database Error"
+                                                });
+                                            }
+
+
+                                            // 5. Student enrollment in this class
+                                            // (does not delete the student accounts)
+                                            db.query(
+                                                `DELETE FROM student_classes
+                                                 WHERE class_id = ?`,
+                                                [id],
+                                                (err) => {
+
+                                                    if (err) {
+                                                        console.error(err);
+
+                                                        return res.status(500).json({
+                                                            success: false,
+                                                            message: "Database Error"
+                                                        });
+                                                    }
+
+
+                                                    // 6. The class itself
+                                                    db.query(
+                                                        `DELETE FROM classes
+                                                         WHERE id = ?`,
+                                                        [id],
+                                                        (err, result) => {
+
+                                                            if (err) {
+                                                                console.error(err);
+
+                                                                return res.status(500).json({
+                                                                    success: false,
+                                                                    message: "Database Error"
+                                                                });
+                                                            }
+
+                                                            if (result.affectedRows === 0) {
+                                                                return res.status(404).json({
+                                                                    success: false,
+                                                                    message: "Class not found."
+                                                                });
+                                                            }
+
+                                                            return res.json({
+                                                                success: true,
+                                                                message: "Class and all associated data deleted successfully."
+                                                            });
+
+                                                        }
+                                                    );
+
+                                                }
+                                            );
+
+                                        }
+                                    );
+
+                                }
+                            );
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+};

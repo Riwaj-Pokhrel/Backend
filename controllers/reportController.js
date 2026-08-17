@@ -1,10 +1,5 @@
 const db = require("../config/db");
 
-
-
-// Check whether user can access a student
-
-
 const checkStudentAccess = (req, student_id, callback) => {
 
     // SUPER_ADMIN can access everything
@@ -245,14 +240,8 @@ const checkSubjectAccess = (
 
 
 
-// ======================================
-// Helper: Convert rows to CSV text
-// ======================================
-//
-// Escapes any field containing a comma, quote, or newline by
-// wrapping it in quotes and doubling internal quotes, per the
-// standard CSV escaping rule. Excel opens this directly.
 
+//  Convert rows to CSV text
 
 const escapeCsvField = (value) => {
 
@@ -448,10 +437,6 @@ exports.getStudentAttendanceSummary = (req, res) => {
 
 
 // Student Attendance Summary — CSV Download
-//
-// Same access rule and same underlying data as
-// getStudentAttendanceSummary above, just returned as a
-// downloadable .csv file instead of JSON.
 
 
 exports.getStudentAttendanceSummaryCSV = (req, res) => {
@@ -773,10 +758,7 @@ exports.getClassAttendanceReport = (req, res) => {
 
 
 // Class Attendance Report — CSV Download
-//
-// Same access rule and same underlying data as
-// getClassAttendanceReport above, just returned as a
-// downloadable .csv file — one row per student in the class.
+
 
 
 exports.getClassAttendanceReportCSV = (req, res) => {
@@ -937,13 +919,7 @@ exports.getClassAttendanceReportCSV = (req, res) => {
 
 
 // Attendance Session Log
-//
-// Shows WHEN attendance was taken — one row per session, with the
-// teacher, class, subject, and how many students were marked.
-// SUPER_ADMIN sees everything, Department Admin sees sessions
-// within their managed departments, a normal Teacher sees only
-// their own sessions. Optional query params: class_id, from, to
-// (dates, inclusive) to narrow the list.
+
 
 
 exports.getSessionLog = (req, res) => {
@@ -1076,12 +1052,6 @@ exports.getSessionLog = (req, res) => {
 
 
 // Sessions Taken Per Teacher
-//
-// How many attendance sessions each teacher has started, in
-// total. SUPER_ADMIN sees all teachers; Department Admin sees
-// only teachers who have an assignment within their managed
-// departments.
-
 
 exports.getTeacherSessionCounts = (req, res) => {
 
@@ -1167,12 +1137,6 @@ exports.getTeacherSessionCounts = (req, res) => {
 
 
 // Student Attendance Report — Per Subject
-//
-// Same access rule as getStudentAttendanceSummary, but broken
-// down one row per subject instead of a single combined total —
-// this is what lets a student see "I'm at 60% in Networks but
-// 95% in Database Management" instead of one blended number.
-
 
 exports.getStudentSubjectReport = (req, res) => {
 
@@ -1477,11 +1441,6 @@ exports.getSubjectAttendanceReport = (req, res) => {
 
 
 // Subject Attendance Report — CSV Download
-//
-// Same access rule and same underlying data as
-// getSubjectAttendanceReport above, just returned as a
-// downloadable .csv file — one row per student in the class.
-
 
 exports.getSubjectAttendanceReportCSV = (req, res) => {
 

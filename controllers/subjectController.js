@@ -1,10 +1,10 @@
 const db = require("../config/db");
 
 
-
+// ======================================
 // Helper:
 // Check whether user can access a class
-
+// ======================================
 
 const checkClassAccess = (req, class_id, callback) => {
 
@@ -49,10 +49,10 @@ const checkClassAccess = (req, class_id, callback) => {
 };
 
 
-
+// ======================================
 // Helper:
 // Check whether user can access subject
-
+// ======================================
 
 const checkSubjectAccess = (req, subject_id, callback) => {
 
@@ -98,9 +98,9 @@ const checkSubjectAccess = (req, subject_id, callback) => {
 };
 
 
-
+// ======================================
 // Create Subject
-
+// ======================================
 
 exports.createSubject = (req, res) => {
 
@@ -219,9 +219,9 @@ exports.createSubject = (req, res) => {
 };
 
 
-
+// ======================================
 // View All Subjects
-
+// ======================================
 
 exports.getAllSubjects = (req, res) => {
 
@@ -330,9 +330,9 @@ exports.getAllSubjects = (req, res) => {
 };
 
 
-
+// ======================================
 // View Subjects By Class
-
+// ======================================
 
 exports.getSubjectsByClass = (req, res) => {
 
@@ -404,9 +404,9 @@ exports.getSubjectsByClass = (req, res) => {
 };
 
 
-
+// ======================================
 // Update Subject
-
+// ======================================
 
 exports.updateSubject = (req, res) => {
 
@@ -563,9 +563,9 @@ exports.updateSubject = (req, res) => {
 };
 
 
-
+// ======================================
 // Archive / Activate Subject
-
+// ======================================
 
 exports.toggleArchiveSubject = (req, res) => {
 
@@ -635,9 +635,9 @@ exports.toggleArchiveSubject = (req, res) => {
 };
 
 
-
+// ======================================
 // View Archived Subjects
-
+// ======================================
 
 exports.getArchivedSubjects = (req, res) => {
 
@@ -736,12 +736,11 @@ exports.getArchivedSubjects = (req, res) => {
                 });
             }
 
-
             return res.json({
-                        success: true,
-                        subjects: results
-                    });
+                success: true,
+                subjects: results
+            });
 
-                }
-            );
-        };
+        }
+    );
+};

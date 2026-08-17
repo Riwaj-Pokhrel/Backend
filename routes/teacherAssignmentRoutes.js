@@ -28,8 +28,7 @@ router.post(
 
 // View All Assignments
 // SUPER_ADMIN / Department Admin / Teacher
-//
-// Controller decides what each user can see.
+
 
 
 router.get(
@@ -94,6 +93,19 @@ router.patch(
     verifyToken,
     allowAdminAccess,
     teacherAssignmentController.toggleAssignmentStatus
+);
+
+
+
+// Delete Assignment
+// SUPER_ADMIN / Department Admin
+
+
+router.delete(
+    "/:id",
+    verifyToken,
+    allowAdminAccess,
+    teacherAssignmentController.deleteAssignment
 );
 
 

@@ -1,6 +1,7 @@
 const db = require("../config/db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { sendOtpEmail } = require("../utils/mailer");
 
 
 
@@ -137,14 +138,6 @@ exports.login = (req, res) => {
 };
 
 
-
-// Change Password
-//
-// Any logged-in user (SUPER_ADMIN, TEACHER, or STUDENT) can
-// change their own password. Requires the current password to
-// confirm identity, same as any standard change-password flow.
-
-
 exports.changePassword = (req, res) => {
 
     const {
@@ -245,6 +238,227 @@ exports.changePassword = (req, res) => {
                     return res.json({
                         success: true,
                         message: "Password changed successfully."
+                    });
+
+                }
+            );
+
+        }
+    );
+
+};
+
+
+
+// Forgot Password 
+
+exports.forgotPassword = (req, res) => {
+
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({
+            success: false,
+            message: "Email is required."
+        });
+    }
+
+    const genericMessage =
+        "A reset code has been sent.";
+
+    db.query(
+        `SELECT id, full_name, is_active
+         FROM users
+         WHERE email=?`,
+        [email],
+        async (err, results) => {
+
+            if (err) {
+                console.error("Forgot Password Database Error:", err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (
+                results.length === 0 ||
+                Number(results[0].is_active) !== 1
+            ) {
+                
+                return res.json({
+                    success: true,
+                    message: genericMessage
+                });
+            }
+
+            const user = results[0];
+
+            const otp = Math.floor(
+                100000 + Math.random() * 900000
+            ).toString();
+
+            const otpHash = await bcrypt.hash(otp, 10);
+
+            const expires = new Date(Date.now() + 15 * 60 * 1000);
+
+            db.query(
+                `UPDATE users
+                 SET reset_otp_hash=?,
+                     reset_otp_expires=?
+                 WHERE id=?`,
+                [
+                    otpHash,
+                    expires,
+                    user.id
+                ],
+                async (err) => {
+
+                    if (err) {
+                        console.error("Forgot Password Database Error:", err);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Database Error"
+                        });
+                    }
+
+                    try {
+
+                        await sendOtpEmail(email, user.full_name, otp);
+
+                        return res.json({
+                            success: true,
+                            message: genericMessage
+                        });
+
+                    } catch (mailErr) {
+
+                        console.error("Email Send Error:", mailErr);
+
+                        return res.status(500).json({
+                            success: false,
+                            message:
+                                "Could not send the reset email. Check the " +
+                                "server's email configuration (EMAIL_USER / " +
+                                "EMAIL_PASS in .env)."
+                        });
+
+                    }
+
+                }
+            );
+
+        }
+    );
+
+};
+
+
+
+
+//  Verify code and set new password
+
+exports.resetPasswordWithOtp = (req, res) => {
+
+    const {
+        email,
+        otp,
+        new_password
+    } = req.body;
+
+    if (!email || !otp || !new_password) {
+        return res.status(400).json({
+            success: false,
+            message: "Email, code, and new password are required."
+        });
+    }
+
+    if (new_password.length < 6) {
+        return res.status(400).json({
+            success: false,
+            message: "New password must be at least 6 characters."
+        });
+    }
+
+    db.query(
+        `SELECT id, reset_otp_hash, reset_otp_expires
+         FROM users
+         WHERE email=?`,
+        [email],
+        async (err, results) => {
+
+            if (err) {
+                console.error("Reset Password Database Error:", err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (results.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid or expired code."
+                });
+            }
+
+            const user = results[0];
+
+            if (!user.reset_otp_hash || !user.reset_otp_expires) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid or expired code."
+                });
+            }
+
+            if (new Date(user.reset_otp_expires) < new Date()) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This code has expired. Please request a new one."
+                });
+            }
+
+            const otpMatch = await bcrypt.compare(
+                otp,
+                user.reset_otp_hash
+            );
+
+            if (!otpMatch) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid code."
+                });
+            }
+
+            const hashedPassword = await bcrypt.hash(new_password, 10);
+
+            db.query(
+                `UPDATE users
+                 SET password=?,
+                     reset_otp_hash=NULL,
+                     reset_otp_expires=NULL
+                 WHERE id=?`,
+                [
+                    hashedPassword,
+                    user.id
+                ],
+                (err) => {
+
+                    if (err) {
+                        console.error("Reset Password Database Error:", err);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Database Error"
+                        });
+                    }
+
+                    return res.json({
+                        success: true,
+                        message: "Password reset successfully. You can now log in."
                     });
 
                 }

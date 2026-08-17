@@ -8,7 +8,9 @@ const {
 
 const {
     login,
-    changePassword
+    changePassword,
+    forgotPassword,
+    resetPasswordWithOtp
 } = require("../controllers/authController");
 
 
@@ -22,6 +24,19 @@ router.post(
     "/change-password",
     verifyToken,
     changePassword
+);
+
+
+router.post(
+    "/forgot-password",
+    forgotPassword
+);
+
+
+
+router.post(
+    "/reset-password",
+    resetPasswordWithOtp
 );
 
 

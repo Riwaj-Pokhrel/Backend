@@ -320,20 +320,21 @@ exports.assignTeacher = (req, res) => {
                                             }
 
 
-                                            // Check overlapping assignment
-                                            // for this specific class/subject/day
+                                            // Check the class doesn't already
+                                            // have something else scheduled at
+                                            // an overlapping time — a class can
+                                            // only have one subject happening
+                                            // at once, regardless of which one.
                                             db.query(
                                                 `SELECT id
                                                  FROM teacher_assignments
                                                  WHERE class_id = ?
-                                                 AND subject_id = ?
                                                  AND day = ?
                                                  AND is_active = 1
                                                  AND start_time < ?
                                                  AND end_time > ?`,
                                                 [
                                                     class_id,
-                                                    subject_id,
                                                     day,
                                                     end_time,
                                                     start_time
@@ -354,7 +355,7 @@ exports.assignTeacher = (req, res) => {
                                                         return res.status(400).json({
                                                             success: false,
                                                             message:
-                                                                "Another teacher is already assigned to this subject at the selected time."
+                                                                "This class already has another subject scheduled at the selected time."
                                                         });
                                                     }
 
@@ -719,7 +720,10 @@ exports.getAssignmentsByClass = (req, res) => {
                 const teacherSql = `
                     SELECT
                         ta.id,
+                        ta.teacher_id,
                         u.full_name AS teacher,
+                        ta.class_id,
+                        ta.subject_id,
                         s.subject_name,
                         ta.day,
                         ta.start_time,
@@ -784,7 +788,10 @@ exports.getAssignmentsByClass = (req, res) => {
             const sql = `
                 SELECT
                     ta.id,
+                    ta.teacher_id,
                     u.full_name AS teacher,
+                    ta.class_id,
+                    ta.subject_id,
                     s.subject_name,
                     ta.day,
                     ta.start_time,
@@ -1048,13 +1055,14 @@ exports.updateAssignment = (req, res) => {
                                                     }
 
 
-                                                    // Check overlapping schedule
-                                                    // for this class/subject/day
+                                                    // Check the class doesn't already
+                                                    // have something else scheduled at
+                                                    // an overlapping time (excluding
+                                                    // this assignment itself)
                                                     db.query(
                                                         `SELECT id
                                                          FROM teacher_assignments
                                                          WHERE class_id = ?
-                                                         AND subject_id = ?
                                                          AND day = ?
                                                          AND is_active = 1
                                                          AND id <> ?
@@ -1062,7 +1070,6 @@ exports.updateAssignment = (req, res) => {
                                                          AND end_time > ?`,
                                                         [
                                                             class_id,
-                                                            subject_id,
                                                             day,
                                                             id,
                                                             end_time,
@@ -1085,7 +1092,7 @@ exports.updateAssignment = (req, res) => {
                                                                 return res.status(400).json({
                                                                     success: false,
                                                                     message:
-                                                                        "Another teacher is already assigned to this subject at the selected time."
+                                                                        "This class already has another subject scheduled at the selected time."
                                                                 });
                                                             }
 
@@ -1245,6 +1252,118 @@ exports.toggleAssignmentStatus = (req, res) => {
                         message:
                             "Assignment status updated successfully."
                     });
+
+                }
+            );
+
+        }
+    );
+};
+
+
+
+// Delete Assignment
+// SUPER_ADMIN / Department Admin
+
+exports.deleteAssignment = (req, res) => {
+
+    const {
+        id
+    } = req.params;
+
+    checkAssignmentAccess(
+        req,
+        id,
+        (err, hasAccess) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (!hasAccess) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "You do not have permission to delete this assignment."
+                });
+            }
+
+
+            // 1. Attendance records for sessions under this assignment
+            db.query(
+                `DELETE a
+                 FROM attendance a
+                 JOIN attendance_sessions ats
+                     ON a.attendance_session_id = ats.id
+                 WHERE ats.teacher_assignment_id = ?`,
+                [id],
+                (err) => {
+
+                    if (err) {
+                        console.error(err);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Database Error"
+                        });
+                    }
+
+
+                    // 2. Attendance sessions under this assignment
+                    db.query(
+                        `DELETE FROM attendance_sessions
+                         WHERE teacher_assignment_id = ?`,
+                        [id],
+                        (err) => {
+
+                            if (err) {
+                                console.error(err);
+
+                                return res.status(500).json({
+                                    success: false,
+                                    message: "Database Error"
+                                });
+                            }
+
+
+                            // 3. The assignment itself
+                            db.query(
+                                `DELETE FROM teacher_assignments
+                                 WHERE id = ?`,
+                                [id],
+                                (err, result) => {
+
+                                    if (err) {
+                                        console.error(err);
+
+                                        return res.status(500).json({
+                                            success: false,
+                                            message: "Database Error"
+                                        });
+                                    }
+
+                                    if (result.affectedRows === 0) {
+                                        return res.status(404).json({
+                                            success: false,
+                                            message: "Assignment not found."
+                                        });
+                                    }
+
+                                    return res.json({
+                                        success: true,
+                                        message: "Assignment and its attendance history deleted successfully."
+                                    });
+
+                                }
+                            );
+
+                        }
+                    );
 
                 }
             );

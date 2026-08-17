@@ -11,7 +11,8 @@ const {
     createClass,
     getAllClasses,
     updateClass,
-    toggleClassStatus
+    toggleClassStatus,
+    deleteClass
 } = require("../controllers/classController");
 
 
@@ -64,6 +65,19 @@ router.patch(
     verifyToken,
     allowAdminAccess,
     toggleClassStatus
+);
+
+
+
+// Delete Class
+// SUPER_ADMIN / Department Admin
+
+
+router.delete(
+    "/:id",
+    verifyToken,
+    allowAdminAccess,
+    deleteClass
 );
 
 
