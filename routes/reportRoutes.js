@@ -127,6 +127,31 @@ router.get(
 
 
 
+// Student Session Detail — one subject, one student, every session
+// SUPER_ADMIN / Department Admin / Teacher
+
+
+router.get(
+    "/subject/:subject_id/class/:class_id/student/:student_id",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER"),
+    reportController.getStudentSubjectSessionDetail
+);
+
+
+
+// Student Session Detail — CSV Download
+
+
+router.get(
+    "/subject/:subject_id/class/:class_id/student/:student_id/download",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER"),
+    reportController.getStudentSubjectSessionDetailCSV
+);
+
+
+
 // Teacher Report
 
 

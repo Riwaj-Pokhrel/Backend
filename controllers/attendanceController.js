@@ -87,6 +87,13 @@ const checkAssignmentAccess = (req, teacher_assignment_id, callback) => {
 
 
 // Start Attendance Session
+//
+// If a session for this assignment already exists for today
+// (e.g. the teacher re-opened the app, or double-tapped
+// "Start Attendance"), we resume that same session instead of
+// creating a second one — this is what keeps session counts in
+// the reports accurate (one row per assignment per day, not one
+// per tap).
 
 exports.startAttendance = (req, res) => {
 
@@ -127,29 +134,18 @@ exports.startAttendance = (req, res) => {
             }
 
 
-            // Start today's session
+            // Check whether today's session already exists first
             db.query(
-                `INSERT INTO attendance_sessions
-                (
-                    teacher_assignment_id,
-                    attendance_date
-                )
-                VALUES (?, CURDATE())`,
+                `SELECT id
+                 FROM attendance_sessions
+                 WHERE teacher_assignment_id=?
+                 AND attendance_date=CURDATE()`,
                 [
                     teacher_assignment_id
                 ],
-                (err, result) => {
+                (err, existing) => {
 
                     if (err) {
-
-                        if (err.code === "ER_DUP_ENTRY") {
-                            return res.status(400).json({
-                                success: false,
-                                message: "Attendance session already exists for today."
-                            });
-                        }
-
-
                         console.error(err);
 
                         return res.status(500).json({
@@ -159,15 +155,66 @@ exports.startAttendance = (req, res) => {
                     }
 
 
-                    const attendance_session_id =
-                        result.insertId;
+                    // Already started today — resume it, don't create a new one
+                    if (existing.length > 0) {
+
+                        return res.status(200).json({
+                            success: true,
+                            message: "Resuming today's attendance session.",
+                            id: existing[0].id
+                        });
+
+                    }
 
 
-                    return res.status(201).json({
-                        success: true,
-                        message: "Attendance session started successfully.",
-                        id: attendance_session_id
-                    });
+                    // No session yet today — create it
+                    db.query(
+                        `INSERT INTO attendance_sessions
+                        (
+                            teacher_assignment_id,
+                            attendance_date
+                        )
+                        VALUES (?, CURDATE())`,
+                        [
+                            teacher_assignment_id
+                        ],
+                        (err, result) => {
+
+                            if (err) {
+
+                                // Race-condition backstop: if two requests
+                                // slip past the SELECT above at almost the
+                                // same time, the DB-level unique constraint
+                                // (once added) rejects the second INSERT here.
+                                if (err.code === "ER_DUP_ENTRY") {
+                                    return res.status(400).json({
+                                        success: false,
+                                        message: "Attendance session already exists for today."
+                                    });
+                                }
+
+
+                                console.error(err);
+
+                                return res.status(500).json({
+                                    success: false,
+                                    message: "Database Error"
+                                });
+                            }
+
+
+                            const attendance_session_id =
+                                result.insertId;
+
+
+                            return res.status(201).json({
+                                success: true,
+                                message: "Attendance session started successfully.",
+                                id: attendance_session_id
+                            });
+
+                        }
+                    );
 
                 }
             );
