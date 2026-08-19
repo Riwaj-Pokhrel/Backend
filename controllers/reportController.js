@@ -332,7 +332,7 @@ exports.getStudentAttendanceSummary = (req, res) => {
 
                     COALESCE(SUM(
                         CASE
-                            WHEN a.status='PRESENT' THEN 1
+                            WHEN a.status IN ('PRESENT','LATE') THEN 1
                             ELSE 0
                         END
                     ), 0) AS present,
@@ -361,7 +361,7 @@ exports.getStudentAttendanceSummary = (req, res) => {
                     COALESCE(ROUND(
                         SUM(
                             CASE
-                                WHEN a.status='PRESENT' THEN 1
+                                WHEN a.status IN ('PRESENT','LATE') THEN 1
                                 ELSE 0
                             END
                         ) * 100 / NULLIF(COUNT(a.id), 0),
@@ -495,7 +495,7 @@ exports.getStudentAttendanceSummaryCSV = (req, res) => {
                     COUNT(a.id) AS total_attendance,
 
                     COALESCE(SUM(
-                        CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END
+                        CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END
                     ), 0) AS present,
 
                     COALESCE(SUM(
@@ -511,7 +511,7 @@ exports.getStudentAttendanceSummaryCSV = (req, res) => {
                     ), 0) AS leave_count,
 
                     COALESCE(ROUND(
-                        SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END)
+                        SUM(CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)
                         * 100 / NULLIF(COUNT(a.id), 0), 2
                     ), 0) AS presence_percentage,
 
@@ -647,7 +647,7 @@ exports.getClassAttendanceReport = (req, res) => {
 
                     COALESCE(SUM(
                         CASE
-                            WHEN a.status='PRESENT' THEN 1
+                            WHEN a.status IN ('PRESENT','LATE') THEN 1
                             ELSE 0
                         END
                     ), 0) AS present,
@@ -676,7 +676,7 @@ exports.getClassAttendanceReport = (req, res) => {
                     COALESCE(ROUND(
                         SUM(
                             CASE
-                                WHEN a.status='PRESENT' THEN 1
+                                WHEN a.status IN ('PRESENT','LATE') THEN 1
                                 ELSE 0
                             END
                         ) * 100 / NULLIF(COUNT(a.id), 0),
@@ -820,7 +820,7 @@ exports.getClassAttendanceReportCSV = (req, res) => {
                     COUNT(a.id) AS total_attendance,
 
                     COALESCE(SUM(
-                        CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END
+                        CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END
                     ), 0) AS present,
 
                     COALESCE(SUM(
@@ -836,7 +836,7 @@ exports.getClassAttendanceReportCSV = (req, res) => {
                     ), 0) AS leave_count,
 
                     COALESCE(ROUND(
-                        SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END)
+                        SUM(CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)
                         * 100 / NULLIF(COUNT(a.id), 0), 2
                     ), 0) AS presence_percentage,
 
@@ -1215,7 +1215,7 @@ exports.getStudentSubjectReport = (req, res) => {
                     COUNT(a.id) AS total_attendance,
 
                     COALESCE(SUM(
-                        CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END
+                        CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END
                     ), 0) AS present,
 
                     COALESCE(SUM(
@@ -1231,7 +1231,7 @@ exports.getStudentSubjectReport = (req, res) => {
                     ), 0) AS leave_count,
 
                     COALESCE(ROUND(
-                        SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END)
+                        SUM(CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)
                         * 100 / NULLIF(COUNT(a.id), 0), 2
                     ), 0) AS presence_percentage
 
@@ -1296,6 +1296,222 @@ exports.getStudentSubjectReport = (req, res) => {
 
 
 
+// Student Full Session Log — every session, every ACTIVE subject
+// of their class
+//
+// Unlike getStudentSubjectReport above (aggregate totals per
+// subject), this returns one row per attendance SESSION across
+// every active (non-archived) subject the student's class has —
+// date, subject, day, and status — a full date-by-date log rather
+// than summary counts.
+
+
+exports.getStudentAllSessions = (req, res) => {
+
+    const { student_id } = req.params;
+
+    if (!student_id) {
+        return res.status(400).json({
+            success: false,
+            message: "Student ID is required."
+        });
+    }
+
+    checkStudentAccess(
+        req,
+        student_id,
+        (err, hasAccess) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (!hasAccess) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You do not have permission to view this student's report."
+                });
+            }
+
+            const sql = `
+                SELECT
+                    ats.attendance_date,
+                    s.subject_name,
+                    ta.day,
+                    a.status
+
+                FROM student_classes sc
+
+                JOIN teacher_assignments ta
+                    ON ta.class_id = sc.class_id
+
+                JOIN subjects s
+                    ON ta.subject_id = s.id
+                    AND s.is_archived = 0
+
+                JOIN attendance_sessions ats
+                    ON ats.teacher_assignment_id = ta.id
+
+                LEFT JOIN attendance a
+                    ON a.attendance_session_id = ats.id
+                    AND a.student_id = sc.student_id
+
+                WHERE sc.student_id = ?
+
+                ORDER BY
+                    ats.attendance_date DESC,
+                    s.subject_name ASC
+            `;
+
+            db.query(
+                sql,
+                [student_id],
+                (err, results) => {
+
+                    if (err) {
+                        console.error(err);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Database Error"
+                        });
+                    }
+
+                    return res.json({
+                        success: true,
+                        student_id: student_id,
+                        sessions: results
+                    });
+
+                }
+            );
+
+        }
+    );
+};
+
+
+
+// Student Full Session Log — CSV Download
+
+
+exports.getStudentAllSessionsCSV = (req, res) => {
+
+    const { student_id } = req.params;
+
+    if (!student_id) {
+        return res.status(400).json({
+            success: false,
+            message: "Student ID is required."
+        });
+    }
+
+    checkStudentAccess(
+        req,
+        student_id,
+        (err, hasAccess) => {
+
+            if (err) {
+                console.error(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database Error"
+                });
+            }
+
+            if (!hasAccess) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You do not have permission to view this student's report."
+                });
+            }
+
+            const sql = `
+                SELECT
+                    ats.attendance_date,
+                    s.subject_name,
+                    ta.day,
+                    a.status
+
+                FROM student_classes sc
+
+                JOIN teacher_assignments ta
+                    ON ta.class_id = sc.class_id
+
+                JOIN subjects s
+                    ON ta.subject_id = s.id
+                    AND s.is_archived = 0
+
+                JOIN attendance_sessions ats
+                    ON ats.teacher_assignment_id = ta.id
+
+                LEFT JOIN attendance a
+                    ON a.attendance_session_id = ats.id
+                    AND a.student_id = sc.student_id
+
+                WHERE sc.student_id = ?
+
+                ORDER BY
+                    ats.attendance_date DESC,
+                    s.subject_name ASC
+            `;
+
+            db.query(
+                sql,
+                [student_id],
+                (err, results) => {
+
+                    if (err) {
+                        console.error(err);
+
+                        return res.status(500).json({
+                            success: false,
+                            message: "Database Error"
+                        });
+                    }
+
+                    const rows = results.map((r) => ({
+                        attendance_date: r.attendance_date,
+                        subject_name: r.subject_name,
+                        day: r.day,
+                        status: r.status || "NOT MARKED"
+                    }));
+
+                    const headers = [
+                        "attendance_date",
+                        "subject_name",
+                        "day",
+                        "status"
+                    ];
+
+                    const csv = rowsToCsv(headers, rows);
+
+                    const filename =
+                        `student_${student_id}_full_session_log.csv`;
+
+                    res.setHeader("Content-Type", "text/csv");
+                    res.setHeader(
+                        "Content-Disposition",
+                        `attachment; filename="${filename}"`
+                    );
+
+                    return res.status(200).send(csv);
+
+                }
+            );
+
+        }
+    );
+};
+
+
+
 // Subject Attendance Report
 
 
@@ -1345,7 +1561,7 @@ exports.getSubjectAttendanceReport = (req, res) => {
 
                     COALESCE(SUM(
                         CASE
-                            WHEN a.status='PRESENT' THEN 1
+                            WHEN a.status IN ('PRESENT','LATE') THEN 1
                             ELSE 0
                         END
                     ), 0) AS present,
@@ -1374,7 +1590,7 @@ exports.getSubjectAttendanceReport = (req, res) => {
                     COALESCE(ROUND(
                         SUM(
                             CASE
-                                WHEN a.status='PRESENT' THEN 1
+                                WHEN a.status IN ('PRESENT','LATE') THEN 1
                                 ELSE 0
                             END
                         ) * 100 / NULLIF(COUNT(a.id), 0),
@@ -1470,7 +1686,7 @@ exports.getSubjectAttendanceReport = (req, res) => {
                             COUNT(DISTINCT ats.id) AS total_sessions,
                             COALESCE(ROUND(
                                 COUNT(
-                                    CASE WHEN a.status='PRESENT' THEN 1 END
+                                    CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 END
                                 ) / NULLIF(COUNT(DISTINCT ats.id), 0),
                                 2
                             ), 0) AS average_present
@@ -1578,7 +1794,7 @@ exports.getSubjectAttendanceReportCSV = (req, res) => {
                     COUNT(a.id) AS total_attendance,
 
                     COALESCE(SUM(
-                        CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END
+                        CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END
                     ), 0) AS present,
 
                     COALESCE(SUM(
@@ -1594,7 +1810,7 @@ exports.getSubjectAttendanceReportCSV = (req, res) => {
                     ), 0) AS leave_count,
 
                     COALESCE(ROUND(
-                        SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END)
+                        SUM(CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)
                         * 100 / NULLIF(COUNT(a.id), 0), 2
                     ), 0) AS presence_percentage,
 
@@ -1973,7 +2189,7 @@ exports.getTeacherReport = (req, res) => {
 
                     COALESCE(SUM(
                         CASE
-                            WHEN a.status='PRESENT' THEN 1
+                            WHEN a.status IN ('PRESENT','LATE') THEN 1
                             ELSE 0
                         END
                     ), 0) AS present,
@@ -2078,7 +2294,7 @@ exports.getTeacherReport = (req, res) => {
 
             COALESCE(SUM(
                 CASE
-                    WHEN a.status='PRESENT' THEN 1
+                    WHEN a.status IN ('PRESENT','LATE') THEN 1
                     ELSE 0
                 END
             ), 0) AS present,

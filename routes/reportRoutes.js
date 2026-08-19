@@ -102,6 +102,32 @@ router.get(
 
 
 
+// Student Full Session Log — every session, every active subject
+// Student can view own log.
+// Teachers/Admins can view according to permissions.
+
+
+router.get(
+    "/student/:student_id/sessions",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER", "STUDENT"),
+    reportController.getStudentAllSessions
+);
+
+
+
+// Student Full Session Log — CSV Download
+
+
+router.get(
+    "/student/:student_id/sessions/download",
+    verifyToken,
+    allowRoles("SUPER_ADMIN", "TEACHER", "STUDENT"),
+    reportController.getStudentAllSessionsCSV
+);
+
+
+
 // Subject Attendance Report
 // SUPER_ADMIN / Department Admin / Teacher
 
