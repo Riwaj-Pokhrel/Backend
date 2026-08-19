@@ -87,13 +87,7 @@ const checkAssignmentAccess = (req, teacher_assignment_id, callback) => {
 
 
 // Start Attendance Session
-//
-// If a session for this assignment already exists for today
-// (e.g. the teacher re-opened the app, or double-tapped
-// "Start Attendance"), we resume that same session instead of
-// creating a second one — this is what keeps session counts in
-// the reports accurate (one row per assignment per day, not one
-// per tap).
+
 
 exports.startAttendance = (req, res) => {
 
@@ -182,10 +176,7 @@ exports.startAttendance = (req, res) => {
 
                             if (err) {
 
-                                // Race-condition backstop: if two requests
-                                // slip past the SELECT above at almost the
-                                // same time, the DB-level unique constraint
-                                // (once added) rejects the second INSERT here.
+                               
                                 if (err.code === "ER_DUP_ENTRY") {
                                     return res.status(400).json({
                                         success: false,

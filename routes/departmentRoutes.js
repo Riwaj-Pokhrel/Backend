@@ -37,8 +37,7 @@ router.post(
 
 // View Departments
 // SUPER_ADMIN / Department Admin (scoped to their own department(s)
-// inside the controller — needed for dropdowns like class/subject
-// creation)
+
 router.get(
     "/",
     verifyToken,

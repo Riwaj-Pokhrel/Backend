@@ -163,11 +163,7 @@ exports.updateTeacher = (req, res) => {
 };
 
 // Reset Teacher Password
-// SUPER_ADMIN ONLY
-//
-// Admin-initiated reset — sets a new password directly and the
-// admin relays it to the teacher out-of-band. The teacher can
-// then change it themselves via their own Change Password screen.
+
 exports.resetTeacherPassword = async (req, res) => {
 
     const { id } = req.params;

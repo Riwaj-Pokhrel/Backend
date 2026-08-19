@@ -32,10 +32,7 @@ router.post(
 
 // View All Teachers
 // SUPER_ADMIN / Department Admin
-//
-// A Department Admin needs to browse teachers in order to assign
-// them to subjects in their department — account management
-// (create/edit/deactivate/reset password) stays SUPER_ADMIN only.
+
 
 router.get(
     "/",

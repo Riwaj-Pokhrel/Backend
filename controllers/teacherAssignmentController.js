@@ -87,9 +87,6 @@ const checkAssignmentAccess = (req, assignment_id, callback) => {
 
 
 // Helper: Check whether the teacher already has an
-// overlapping assignment on the same day, regardless
-// of class/subject. Prevents double-booking a teacher
-// into two places at once.
 
 
 const checkTeacherScheduleConflict = (
@@ -322,9 +319,7 @@ exports.assignTeacher = (req, res) => {
 
                                             // Check the class doesn't already
                                             // have something else scheduled at
-                                            // an overlapping time — a class can
-                                            // only have one subject happening
-                                            // at once, regardless of which one.
+                                            // an overlapping time
                                             db.query(
                                                 `SELECT id
                                                  FROM teacher_assignments
@@ -1027,7 +1022,7 @@ exports.updateAssignment = (req, res) => {
 
                                             // Check the teacher isn't already
                                             // booked elsewhere at this time
-                                            // (excluding this assignment itself)
+                                            
                                             checkTeacherScheduleConflict(
                                                 teacher_id,
                                                 day,
@@ -1057,8 +1052,7 @@ exports.updateAssignment = (req, res) => {
 
                                                     // Check the class doesn't already
                                                     // have something else scheduled at
-                                                    // an overlapping time (excluding
-                                                    // this assignment itself)
+                                                    // an overlapping time 
                                                     db.query(
                                                         `SELECT id
                                                          FROM teacher_assignments

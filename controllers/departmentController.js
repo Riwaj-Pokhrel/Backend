@@ -74,11 +74,6 @@ exports.createDepartment = (req, res) => {
 
 
 // View Departments
-// SUPER_ADMIN sees all.
-// Department Admin sees only their own managed department(s) —
-// needed so screens like class/subject creation can populate a
-// department dropdown for them.
-
 
 exports.getAllDepartments = (req, res) => {
 
@@ -395,13 +390,6 @@ exports.makeDepartmentAdmin = (req, res) => {
 
 
 // Remove Department Admin Privilege
-// SUPER_ADMIN ONLY
-//
-// Also clears any existing department_management rows for
-// this teacher, so re-promoting them later starts from a
-// clean slate instead of silently restoring old department
-// access they were never explicitly re-granted.
-
 
 exports.removeDepartmentAdmin = (req, res) => {
 
